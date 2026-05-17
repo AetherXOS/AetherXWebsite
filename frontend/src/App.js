@@ -13,6 +13,7 @@ import NewsDetail from "@/pages/NewsDetail";
 import Changelog from "@/pages/Changelog";
 import Architecture from "@/pages/Architecture";
 import Docs from "@/pages/Docs";
+import Security from "@/pages/Security";
 
 import AdminLogin from "@/pages/admin/Login";
 import AdminDashboard from "@/pages/admin/Dashboard";
@@ -20,6 +21,9 @@ import AdminPosts from "@/pages/admin/Posts";
 import AdminChangelogs from "@/pages/admin/Changelogs";
 import AdminReleases from "@/pages/admin/Releases";
 import AdminSystem from "@/pages/admin/System";
+import AdminDocs from "@/pages/admin/Docs";
+import AdminUsers from "@/pages/admin/Users";
+import AdminSecurity from "@/pages/admin/Security";
 
 function withLayout(Page) {
     return (
@@ -42,6 +46,7 @@ function App() {
                     <Route path="/changelog" element={withLayout(Changelog)} />
                     <Route path="/architecture" element={withLayout(Architecture)} />
                     <Route path="/docs" element={withLayout(Docs)} />
+                    <Route path="/security" element={withLayout(Security)} />
 
                     {/* Admin */}
                     <Route path="/admin/login" element={<AdminLogin />} />
@@ -70,10 +75,34 @@ function App() {
                         }
                     />
                     <Route
+                        path="/admin/docs"
+                        element={
+                            <ProtectedRoute>
+                                <AdminDocs />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
                         path="/admin/releases"
                         element={
                             <ProtectedRoute>
                                 <AdminReleases />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/users"
+                        element={
+                            <ProtectedRoute>
+                                <AdminUsers />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/security"
+                        element={
+                            <ProtectedRoute>
+                                <AdminSecurity />
                             </ProtectedRoute>
                         }
                     />

@@ -10,14 +10,20 @@ import {
     LogOut,
     Cpu,
     ExternalLink,
+    BookOpen,
+    Users as UsersIcon,
+    ShieldCheck,
 } from "lucide-react";
 
 const NAV = [
-    { to: "/admin", label: "Analytics", icon: LayoutDashboard, end: true },
-    { to: "/admin/posts", label: "News CMS", icon: FileText },
-    { to: "/admin/changelogs", label: "Changelogs", icon: GitCommitHorizontal },
-    { to: "/admin/releases", label: "Releases", icon: Package },
-    { to: "/admin/system", label: "System Health", icon: Activity },
+    { to: "/admin", label: "Analytics", icon: LayoutDashboard, end: true, role: "admin" },
+    { to: "/admin/posts", label: "News CMS", icon: FileText, role: "staff" },
+    { to: "/admin/changelogs", label: "Changelogs", icon: GitCommitHorizontal, role: "staff" },
+    { to: "/admin/docs", label: "Documentation", icon: BookOpen, role: "staff" },
+    { to: "/admin/releases", label: "Releases", icon: Package, role: "admin" },
+    { to: "/admin/security", label: "Signing Key", icon: ShieldCheck, role: "admin" },
+    { to: "/admin/users", label: "Users", icon: UsersIcon, role: "admin" },
+    { to: "/admin/system", label: "System Health", icon: Activity, role: "admin" },
 ];
 
 export default function AdminLayout({ children, title }) {
@@ -38,7 +44,7 @@ export default function AdminLayout({ children, title }) {
                     </div>
                 </div>
                 <nav className="p-3 space-y-1">
-                    {NAV.map((n) => {
+                    {NAV.filter((n) => n.role === "staff" || user?.role === "admin").map((n) => {
                         const Icon = n.icon;
                         return (
                             <NavLink

@@ -13,7 +13,9 @@ export default function AdminLogin() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (bootstrapped && user) navigate("/admin", { replace: true });
+        if (bootstrapped && user) {
+            navigate(user.role === "admin" ? "/admin" : "/admin/posts", { replace: true });
+        }
     }, [user, bootstrapped, navigate]);
 
     async function onSubmit(e) {
@@ -21,8 +23,8 @@ export default function AdminLogin() {
         setBusy(true);
         setErr(null);
         try {
-            await login(email, password);
-            navigate("/admin", { replace: true });
+            const u = await login(email, password);
+            navigate(u.role === "admin" ? "/admin" : "/admin/posts", { replace: true });
         } catch (ex) {
             setErr(formatApiError(ex.response?.data?.detail) || ex.message);
         } finally {

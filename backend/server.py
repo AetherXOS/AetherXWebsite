@@ -14,11 +14,14 @@ from typing import List, Optional
 
 import bcrypt
 import jwt
+import httpx
+import markdown as md_lib
 from fastapi import FastAPI, APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr
+from xml.sax.saxutils import escape as xml_escape
 
 # ---------------------------------------------------------------------------
 # Config
@@ -89,14 +92,45 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "0.0.0.0"
 
 
-# Lightweight IP -> country approximation (no external DB needed).
-def country_from_ip(ip: str) -> str:
+# Lightweight IP -> country via ip-api.com (free, no key, 45 req/min) with MongoDB cache.
+GEO_CACHE_TTL_HOURS = 24 * 30
+async def country_from_ip(ip: str) -> str:
     if not ip or ip.startswith(("127.", "10.", "192.168.", "172.")):
         return "Local"
-    # Pseudo-geo bucket via hash for demo analytics
-    buckets = ["US", "DE", "TR", "IN", "BR", "JP", "GB", "FR", "CA", "AU", "NL", "SE", "SG", "KR"]
-    h = int(hashlib.md5(ip.encode()).hexdigest(), 16)
-    return buckets[h % len(buckets)]
+    cached = await db.geo_cache.find_one({"ip": ip})
+    if cached and cached.get("country"):
+        return cached["country"]
+    country = "Unknown"
+    try:
+        async with httpx.AsyncClient(timeout=2.5) as cli:
+            r = await cli.get(
+                f"http://ip-api.com/json/{ip}",
+                params={"fields": "status,country,countryCode"},
+            )
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("status") == "success":
+                    country = data.get("country") or data.get("countryCode") or "Unknown"
+    except Exception as e:
+        log.warning(f"geoip lookup failed for {ip}: {e}")
+        # Fallback hash bucket so analytics keeps producing usable data offline.
+        buckets = ["United States", "Germany", "Turkey", "India", "Brazil", "Japan", "United Kingdom", "France", "Canada", "Australia"]
+        h = int(hashlib.md5(ip.encode()).hexdigest(), 16)
+        country = buckets[h % len(buckets)]
+    await db.geo_cache.update_one(
+        {"ip": ip},
+        {"$set": {"ip": ip, "country": country, "ts": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return country
+
+
+def render_markdown(text: str) -> str:
+    return md_lib.markdown(
+        text or "",
+        extensions=["fenced_code", "tables", "toc", "sane_lists"],
+        output_format="html5",
+    )
 
 
 async def admin_log(action: str, actor: str, meta: Optional[dict] = None):
@@ -140,6 +174,12 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     return user
 
 
+async def require_staff(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in ("admin", "editor"):
+        raise HTTPException(status_code=403, detail="Staff access required")
+    return user
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -179,6 +219,34 @@ class ReleaseIn(BaseModel):
     min_ram_gb: int = 2
     min_disk_gb: int = 4
     storage_kind: str = "external"  # external | local
+    signature_url: Optional[str] = None
+    signing_key_fingerprint: Optional[str] = None
+
+
+class DocIn(BaseModel):
+    slug: str
+    title: str
+    section: str = "Introduction"
+    order: int = 0
+    body: str = ""  # markdown
+    published: bool = True
+
+
+class UserIn(BaseModel):
+    email: EmailStr
+    password: str
+    name: str = ""
+    role: str = "editor"  # admin | editor
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+class SecurityKeyIn(BaseModel):
+    fingerprint: str
+    public_key: str  # ASCII-armored
+    notes: str = ""
 
 
 class TrackEventIn(BaseModel):
@@ -292,7 +360,7 @@ async def get_post(slug: str):
 
 
 @api.post("/posts")
-async def create_post(body: PostIn, user: dict = Depends(require_admin)):
+async def create_post(body: PostIn, user: dict = Depends(require_staff)):
     slug_base = slugify(body.title)
     slug = slug_base
     i = 1
@@ -314,7 +382,7 @@ async def create_post(body: PostIn, user: dict = Depends(require_admin)):
 
 
 @api.put("/posts/{post_id}")
-async def update_post(post_id: str, body: PostIn, user: dict = Depends(require_admin)):
+async def update_post(post_id: str, body: PostIn, user: dict = Depends(require_staff)):
     existing = await db.posts.find_one({"id": post_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -326,7 +394,7 @@ async def update_post(post_id: str, body: PostIn, user: dict = Depends(require_a
 
 
 @api.delete("/posts/{post_id}")
-async def delete_post(post_id: str, user: dict = Depends(require_admin)):
+async def delete_post(post_id: str, user: dict = Depends(require_staff)):
     res = await db.posts.delete_one({"id": post_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -344,7 +412,7 @@ async def list_changelogs():
 
 
 @api.post("/changelogs")
-async def create_changelog(body: ChangelogIn, user: dict = Depends(require_admin)):
+async def create_changelog(body: ChangelogIn, user: dict = Depends(require_staff)):
     doc = {
         "id": str(uuid.uuid4()),
         **body.model_dump(),
@@ -358,7 +426,7 @@ async def create_changelog(body: ChangelogIn, user: dict = Depends(require_admin
 
 
 @api.put("/changelogs/{cid}")
-async def update_changelog(cid: str, body: ChangelogIn, user: dict = Depends(require_admin)):
+async def update_changelog(cid: str, body: ChangelogIn, user: dict = Depends(require_staff)):
     update = body.model_dump()
     if not update.get("released_at"):
         update["released_at"] = now_utc().isoformat()
@@ -370,7 +438,7 @@ async def update_changelog(cid: str, body: ChangelogIn, user: dict = Depends(req
 
 
 @api.delete("/changelogs/{cid}")
-async def delete_changelog(cid: str, user: dict = Depends(require_admin)):
+async def delete_changelog(cid: str, user: dict = Depends(require_staff)):
     res = await db.changelogs.delete_one({"id": cid})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
@@ -411,6 +479,8 @@ async def upload_release(
     arch: str = Form("x86_64"),
     min_ram_gb: int = Form(2),
     min_disk_gb: int = Form(4),
+    signature_url: str = Form(""),
+    signing_key_fingerprint: str = Form(""),
     file: UploadFile = File(...),
     user: dict = Depends(require_admin),
 ):
@@ -444,6 +514,8 @@ async def upload_release(
         "storage_kind": "local",
         "local_path": str(save_path),
         "downloads": 0,
+        "signature_url": signature_url or None,
+        "signing_key_fingerprint": signing_key_fingerprint or None,
         "created_at": now_utc().isoformat(),
     }
     await db.releases.insert_one(doc)
@@ -483,7 +555,7 @@ async def download_release(rid: str, request: Request):
         "version": rel.get("version"),
         "channel": rel.get("channel"),
         "ip": ip,
-        "country": country_from_ip(ip),
+        "country": await country_from_ip(ip),
         "ua": request.headers.get("user-agent", ""),
         "referrer": request.headers.get("referer", ""),
         "ts": now_utc().isoformat(),
@@ -507,7 +579,7 @@ async def analytics_track(body: TrackEventIn, request: Request):
         "path": body.path,
         "referrer": body.referrer or request.headers.get("referer", ""),
         "ip": ip,
-        "country": country_from_ip(ip),
+        "country": await country_from_ip(ip),
         "ua": request.headers.get("user-agent", ""),
         "meta": body.meta,
         "ts": now_utc().isoformat(),
@@ -627,6 +699,261 @@ async def admin_logs(limit: int = 100, user: dict = Depends(require_admin)):
 
 
 # ---------------------------------------------------------------------------
+# DOCS (MongoDB-backed markdown documentation)
+# ---------------------------------------------------------------------------
+@api.get("/docs")
+async def list_docs(include_unpublished: bool = False):
+    q = {} if include_unpublished else {"published": True}
+    items = await db.docs.find(q, {"_id": 0}).sort([("section", 1), ("order", 1)]).to_list(length=500)
+    return {"items": items}
+
+
+@api.get("/docs/{slug}")
+async def get_doc(slug: str):
+    doc = await db.docs.find_one({"slug": slug}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Doc not found")
+    doc["html"] = render_markdown(doc.get("body", ""))
+    return doc
+
+
+@api.post("/docs")
+async def create_doc(body: DocIn, user: dict = Depends(require_staff)):
+    if await db.docs.find_one({"slug": body.slug}):
+        raise HTTPException(status_code=409, detail="Slug already exists")
+    doc = {
+        "id": str(uuid.uuid4()),
+        **body.model_dump(),
+        "created_at": now_utc().isoformat(),
+        "updated_at": now_utc().isoformat(),
+    }
+    await db.docs.insert_one(doc)
+    doc.pop("_id", None)
+    await admin_log("doc.create", user["email"], {"slug": body.slug})
+    return doc
+
+
+@api.put("/docs/{doc_id}")
+async def update_doc(doc_id: str, body: DocIn, user: dict = Depends(require_staff)):
+    existing = await db.docs.find_one({"id": doc_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Doc not found")
+    if body.slug != existing["slug"]:
+        clash = await db.docs.find_one({"slug": body.slug, "id": {"$ne": doc_id}})
+        if clash:
+            raise HTTPException(status_code=409, detail="Slug already used")
+    update = {**body.model_dump(), "updated_at": now_utc().isoformat()}
+    await db.docs.update_one({"id": doc_id}, {"$set": update})
+    await admin_log("doc.update", user["email"], {"id": doc_id})
+    return await db.docs.find_one({"id": doc_id}, {"_id": 0})
+
+
+@api.delete("/docs/{doc_id}")
+async def delete_doc(doc_id: str, user: dict = Depends(require_staff)):
+    res = await db.docs.delete_one({"id": doc_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Doc not found")
+    await admin_log("doc.delete", user["email"], {"id": doc_id})
+    return {"ok": True}
+
+
+class MarkdownIn(BaseModel):
+    text: str = ""
+
+
+@api.post("/markdown/render")
+async def render_markdown_endpoint(body: MarkdownIn, user: dict = Depends(require_staff)):
+    return {"html": render_markdown(body.text)}
+
+
+# ---------------------------------------------------------------------------
+# USERS (admin-only management of admin/editor accounts)
+# ---------------------------------------------------------------------------
+@api.get("/admin/users")
+async def list_users(user: dict = Depends(require_admin)):
+    items = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(length=500)
+    return {"items": items}
+
+
+@api.post("/admin/users")
+async def create_user(body: UserIn, user: dict = Depends(require_admin)):
+    if body.role not in ("admin", "editor"):
+        raise HTTPException(status_code=400, detail="role must be admin or editor")
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=409, detail="Email already in use")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "name": body.name or email.split("@")[0],
+        "role": body.role,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.users.insert_one(doc)
+    await admin_log("user.create", user["email"], {"email": email, "role": body.role})
+    doc.pop("_id", None)
+    doc.pop("password_hash", None)
+    return doc
+
+
+@api.put("/admin/users/{uid}/role")
+async def update_user_role(uid: str, body: UserRoleUpdate, user: dict = Depends(require_admin)):
+    if body.role not in ("admin", "editor"):
+        raise HTTPException(status_code=400, detail="invalid role")
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="user not found")
+    # Prevent demoting the last admin
+    if target.get("role") == "admin" and body.role != "admin":
+        admins = await db.users.count_documents({"role": "admin"})
+        if admins <= 1:
+            raise HTTPException(status_code=400, detail="cannot demote the last admin")
+    await db.users.update_one({"id": uid}, {"$set": {"role": body.role}})
+    await admin_log("user.role", user["email"], {"id": uid, "role": body.role})
+    return {"ok": True}
+
+
+@api.delete("/admin/users/{uid}")
+async def delete_user(uid: str, user: dict = Depends(require_admin)):
+    target = await db.users.find_one({"id": uid})
+    if not target:
+        raise HTTPException(status_code=404, detail="user not found")
+    if target.get("email") == user.get("email"):
+        raise HTTPException(status_code=400, detail="cannot delete yourself")
+    if target.get("role") == "admin":
+        admins = await db.users.count_documents({"role": "admin"})
+        if admins <= 1:
+            raise HTTPException(status_code=400, detail="cannot delete the last admin")
+    await db.users.delete_one({"id": uid})
+    await admin_log("user.delete", user["email"], {"id": uid, "email": target.get("email")})
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# RELEASE SIGNATURE (.asc upload) & SECURITY (public GPG key page)
+# ---------------------------------------------------------------------------
+@api.post("/releases/{rid}/signature")
+async def upload_signature(rid: str, file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    rel = await db.releases.find_one({"id": rid})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Release not found")
+    safe_name = re.sub(r"[^\w.\-]+", "_", file.filename or "signature.asc")
+    sig_path = STORAGE_DIR / f"{rid}__sig__{safe_name}"
+    content = await file.read()
+    sig_path.write_bytes(content)
+    await db.releases.update_one(
+        {"id": rid},
+        {"$set": {
+            "signature_file_name": safe_name,
+            "signature_file_path": str(sig_path),
+            "signature_file_size": len(content),
+        }},
+    )
+    await admin_log("release.signature", user["email"], {"id": rid, "size": len(content)})
+    return {"ok": True, "size": len(content), "name": safe_name}
+
+
+@api.get("/releases/{rid}/signature/file")
+async def download_signature(rid: str):
+    rel = await db.releases.find_one({"id": rid})
+    if not rel:
+        raise HTTPException(status_code=404, detail="Release not found")
+    sp = rel.get("signature_file_path")
+    if not sp or not Path(sp).exists():
+        raise HTTPException(status_code=404, detail="Signature file not available")
+    return FileResponse(sp, filename=rel.get("signature_file_name") or "signature.asc", media_type="text/plain")
+
+
+@api.get("/security/key")
+async def get_security_key():
+    s = await db.settings.find_one({"key": "gpg"}, {"_id": 0})
+    if not s:
+        return {"fingerprint": "", "public_key": "", "notes": ""}
+    return s
+
+
+@api.put("/security/key")
+async def set_security_key(body: SecurityKeyIn, user: dict = Depends(require_admin)):
+    await db.settings.update_one(
+        {"key": "gpg"},
+        {"$set": {"key": "gpg", "fingerprint": body.fingerprint, "public_key": body.public_key, "notes": body.notes, "updated_at": now_utc().isoformat()}},
+        upsert=True,
+    )
+    await admin_log("security.key", user["email"], {"fingerprint": body.fingerprint[-16:]})
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# RSS FEEDS
+# ---------------------------------------------------------------------------
+def _rss_response(title: str, link: str, description: str, items: list) -> Response:
+    body_parts = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+        "<channel>",
+        f"<title>{xml_escape(title)}</title>",
+        f"<link>{xml_escape(link)}</link>",
+        f"<description>{xml_escape(description)}</description>",
+        f'<atom:link href="{xml_escape(link)}" rel="self" type="application/rss+xml" />',
+        f"<lastBuildDate>{now_utc().strftime('%a, %d %b %Y %H:%M:%S +0000')}</lastBuildDate>",
+    ]
+    for it in items:
+        body_parts.append("<item>")
+        body_parts.append(f"<title>{xml_escape(it['title'])}</title>")
+        body_parts.append(f"<link>{xml_escape(it['link'])}</link>")
+        body_parts.append(f"<guid isPermaLink=\"false\">{xml_escape(it['guid'])}</guid>")
+        if it.get("pub_date"):
+            body_parts.append(f"<pubDate>{xml_escape(it['pub_date'])}</pubDate>")
+        if it.get("description"):
+            body_parts.append(f"<description><![CDATA[{it['description']}]]></description>")
+        body_parts.append("</item>")
+    body_parts.append("</channel></rss>")
+    return Response(content="\n".join(body_parts), media_type="application/rss+xml")
+
+
+def _pub_date(iso: str) -> str:
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%a, %d %b %Y %H:%M:%S +0000")
+    except Exception:
+        return ""
+
+
+@api.get("/feed/news.xml")
+async def feed_news(request: Request):
+    base = str(request.base_url).rstrip("/").replace("/api", "")
+    posts = await db.posts.find({"published": True}, {"_id": 0}).sort("created_at", -1).limit(30).to_list(length=30)
+    items = [
+        {
+            "title": p["title"],
+            "link": f"{base}/news/{p['slug']}",
+            "guid": p["id"],
+            "pub_date": _pub_date(p.get("created_at", "")),
+            "description": p.get("excerpt") or p.get("content", ""),
+        }
+        for p in posts
+    ]
+    return _rss_response("AetherXOS News", f"{base}/news", "Releases, deep-dives, and announcements.", items)
+
+
+@api.get("/feed/changelog.xml")
+async def feed_changelog(request: Request):
+    base = str(request.base_url).rstrip("/").replace("/api", "")
+    cs = await db.changelogs.find({}, {"_id": 0}).sort("released_at", -1).limit(50).to_list(length=50)
+    items = [
+        {
+            "title": f"v{c['version']} — {c['title']}",
+            "link": f"{base}/changelog",
+            "guid": c["id"],
+            "pub_date": _pub_date(c.get("released_at", "")),
+            "description": c.get("content", ""),
+        }
+        for c in cs
+    ]
+    return _rss_response("AetherXOS Changelog", f"{base}/changelog", "Architectural changes, fixes, and security advisories.", items)
+
+
+# ---------------------------------------------------------------------------
 # Startup
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
@@ -634,10 +961,15 @@ async def startup():
     # Indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)
+    await db.users.create_index("role")
     await db.posts.create_index("slug", unique=True)
     await db.posts.create_index("id", unique=True)
     await db.changelogs.create_index("id", unique=True)
     await db.releases.create_index("id", unique=True)
+    await db.docs.create_index("slug", unique=True)
+    await db.docs.create_index("id", unique=True)
+    await db.geo_cache.create_index("ip", unique=True)
+    await db.settings.create_index("key", unique=True)
     await db.analytics_events.create_index("ts")
     await db.login_attempts.create_index("identifier")
 
@@ -654,10 +986,20 @@ async def startup():
             "role": "admin",
             "created_at": now_utc().isoformat(),
         })
-        log.info(f"Seeded admin user {admin_email}")
-    elif not verify_password(admin_password, existing["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
-        log.info(f"Updated admin password for {admin_email}")
+        log.info(f"Seeded admin user {admin_email} from env")
+    else:
+        updates = {}
+        if not verify_password(admin_password, existing["password_hash"]):
+            updates["password_hash"] = hash_password(admin_password)
+            log.info(f"Updated admin password for {admin_email} from env")
+        if existing.get("role") != "admin":
+            updates["role"] = "admin"
+        if updates:
+            await db.users.update_one({"email": admin_email}, {"$set": updates})
+
+    # Seed docs if empty
+    if await db.docs.count_documents({}) == 0:
+        await _seed_docs()
 
     # Seed initial data if empty
     if await db.posts.count_documents({}) == 0:
@@ -785,6 +1127,52 @@ async def _seed_initial_data():
     if events:
         await db.analytics_events.insert_many(events)
     log.info("Seeded initial AetherXOS data.")
+
+
+async def _seed_docs():
+    docs = [
+        {"slug": "welcome", "section": "Introduction", "order": 1, "title": "Welcome to AetherXOS",
+         "body": "# Welcome\n\nAetherXOS is an **exokernel + Library OS**. This documentation walks you from your first capability invocation to writing your own library OS.\n\n## Who is this for?\n\n- Systems engineers tired of fighting their kernel\n- Latency-sensitive workloads (HFT, RT control, RTC)\n- Curious kernel hackers"},
+        {"slug": "philosophy", "section": "Introduction", "order": 2, "title": "Design Philosophy",
+         "body": "# Design Philosophy\n\nThe kernel should **get out of the way**. AetherXOS exposes raw hardware to applications via *capabilities* and lets you compose your runtime as a Library OS.\n\n> Expose, don't abstract.\n"},
+        {"slug": "quickstart", "section": "Introduction", "order": 3, "title": "Quickstart",
+         "body": "# Quickstart\n\n```bash\ncurl -sSL https://aetherxos.dev/install.sh | sh\naether boot ./my_libos\n```\n\nThat's it. Your LibOS is running on bare metal."},
+        {"slug": "capabilities", "section": "Exokernel Core", "order": 1, "title": "Capabilities",
+         "body": "# Capabilities\n\nA **capability** is a typed, unforgeable reference to a resource.\n\n```rust\nlet nic_cap = bootinfo.find_cap::<Nic>()?;\nlet pkt = nic_cap.recv_zerocopy()?;\n```\n\nThe exokernel only allows operations on resources you hold a capability for."},
+        {"slug": "memory", "section": "Exokernel Core", "order": 2, "title": "Memory & Paging",
+         "body": "# Memory & Paging\n\nApplications manage their own page tables — under capability supervision.\n\n## Allocate a page frame\n\n```rust\nlet frame = pmem.alloc_frame(4096)?;\nvspace.map(0xCAFE_0000, frame, RW)?;\n```"},
+        {"slug": "ipc", "section": "Exokernel Core", "order": 3, "title": "IPC Primitives",
+         "body": "# IPC Primitives\n\n- **Endpoints**: synchronous capability-typed channels\n- **Notifications**: async signals (semaphore-like)\n- **Shared regions**: zero-copy buffers between LibOS instances"},
+        {"slug": "syscalls", "section": "Exokernel Core", "order": 4, "title": "System Calls",
+         "body": "# System Calls\n\nAetherXOS has just **23 syscalls**. Everything else is implemented in user space libraries.\n\n| # | Name | Purpose |\n|---|------|---------|\n| 0 | `cap_invoke` | Invoke any capability |\n| 1 | `yield` | Yield CPU |\n| 2 | `wait` | Wait on notification |\n| ... | ... | ... |"},
+        {"slug": "scaffold", "section": "Library OS", "order": 1, "title": "Scaffold a LibOS",
+         "body": "# Scaffold a LibOS\n\n```bash\ncargo new --lib mylibos\ncd mylibos\ncargo add aether-core@1.0\n```\n\nImplement the `LibOs` trait, boot it with `aether-init`."},
+        {"slug": "posix", "section": "Library OS", "order": 2, "title": "Linking the POSIX Layer",
+         "body": "# Linking POSIX\n\nUse the prebuilt POSIX LibOS for legacy apps:\n\n```toml\n[dependencies]\naether-libos-posix = \"1.0\"\n```"},
+        {"slug": "rt", "section": "Library OS", "order": 3, "title": "Real-time Layer",
+         "body": "# Real-time Layer\n\nHard real-time scheduling at the LibOS level. Pin tasks to cores, get deterministic latency."},
+        {"slug": "custom-sched", "section": "Library OS", "order": 4, "title": "Custom Scheduler",
+         "body": "# Custom Scheduler\n\nWrite a 30-line scheduler tailored to your workload — it's just user code."},
+        {"slug": "nic", "section": "Drivers", "order": 1, "title": "Zero-copy NIC",
+         "body": "# Zero-copy NIC Driver\n\n100 GbE line-rate from user space. No kernel detour."},
+        {"slug": "nvme", "section": "Drivers", "order": 2, "title": "NVMe",
+         "body": "# NVMe Driver\n\nDirect submission queues, no IO scheduler between you and the SSD."},
+        {"slug": "gpu", "section": "Drivers", "order": 3, "title": "GPU Compute",
+         "body": "# GPU Compute\n\nMap the GPU directly into your LibOS. CUDA-style without the runtime tax."},
+        {"slug": "install", "section": "Operations", "order": 1, "title": "Installation",
+         "body": "# Installation\n\nDownload the ISO from the [Download Center](/downloads), verify the SHA256, and flash a USB stick."},
+        {"slug": "boot", "section": "Operations", "order": 2, "title": "Boot & Init",
+         "body": "# Boot & Init\n\nUEFI + GPT. Falls back to BIOS on legacy hardware."},
+        {"slug": "monitor", "section": "Operations", "order": 3, "title": "Monitoring",
+         "body": "# Monitoring\n\nUse `aether top` for a per-capability resource view, or export metrics over Prometheus."},
+    ]
+    now = now_utc().isoformat()
+    payload = [
+        {"id": str(uuid.uuid4()), **d, "published": True, "created_at": now, "updated_at": now}
+        for d in docs
+    ]
+    await db.docs.insert_many(payload)
+    log.info(f"Seeded {len(payload)} doc pages.")
 
 
 app.include_router(api)

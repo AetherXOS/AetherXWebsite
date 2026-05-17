@@ -23,6 +23,7 @@ export default function AdminReleases() {
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState(null);
     const fileRef = useRef(null);
+    const sigRef = useRef(null);
 
     const load = () => api.get("/releases").then((r) => setItems(r.data.items || []));
     useEffect(() => {
@@ -39,6 +40,8 @@ export default function AdminReleases() {
             arch: "x86_64",
             min_ram_gb: 2,
             min_disk_gb: 4,
+            signature_url: "",
+            signing_key_fingerprint: "",
         });
         setErr(null);
     }
@@ -57,6 +60,8 @@ export default function AdminReleases() {
             sha256: "",
             file_size: 0,
             storage_kind: "external",
+            signature_url: "",
+            signing_key_fingerprint: "",
         });
         setErr(null);
     }
@@ -77,11 +82,21 @@ export default function AdminReleases() {
                 fd.append("arch", form.arch);
                 fd.append("min_ram_gb", form.min_ram_gb);
                 fd.append("min_disk_gb", form.min_disk_gb);
-                await api.post("/releases/upload", fd, {
+                fd.append("signature_url", form.signature_url || "");
+                fd.append("signing_key_fingerprint", form.signing_key_fingerprint || "");
+                const res = await api.post("/releases/upload", fd, {
                     headers: { "Content-Type": "multipart/form-data" },
                 });
+                const sigFile = sigRef.current?.files?.[0];
+                if (sigFile && res.data?.id) {
+                    const sfd = new FormData();
+                    sfd.append("file", sigFile);
+                    await api.post(`/releases/${res.data.id}/signature`, sfd, {
+                        headers: { "Content-Type": "multipart/form-data" },
+                    });
+                }
             } else {
-                await api.post("/releases", { ...form });
+                await api.post(`/releases`, { ...form });
             }
             setMode(null);
             load();
@@ -243,19 +258,33 @@ export default function AdminReleases() {
                             </div>
 
                             {mode === "upload" ? (
-                                <div>
-                                    <div className="font-mono text-[11px] uppercase tracking-widest text-neutral-500 mb-2">
-                                        ISO file
+                                <div className="space-y-3">
+                                    <div>
+                                        <div className="font-mono text-[11px] uppercase tracking-widest text-neutral-500 mb-2">
+                                            ISO file
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={fileRef}
+                                            data-testid="release-file-input"
+                                            className="w-full bg-black border border-dashed border-neutral-700 px-3 py-6 font-mono text-xs"
+                                        />
+                                        <div className="font-mono text-[11px] text-neutral-500 mt-2 flex items-center gap-1">
+                                            <Hash size={11} className="text-cyan-400" />{" "}
+                                            SHA256 will be computed automatically and saved to disk.
+                                        </div>
                                     </div>
-                                    <input
-                                        type="file"
-                                        ref={fileRef}
-                                        data-testid="release-file-input"
-                                        className="w-full bg-black border border-dashed border-neutral-700 px-3 py-6 font-mono text-xs"
-                                    />
-                                    <div className="font-mono text-[11px] text-neutral-500 mt-2 flex items-center gap-1">
-                                        <Hash size={11} className="text-cyan-400" />{" "}
-                                        SHA256 will be computed automatically and saved to disk.
+                                    <div>
+                                        <div className="font-mono text-[11px] uppercase tracking-widest text-neutral-500 mb-2">
+                                            Detached signature (.asc) — optional
+                                        </div>
+                                        <input
+                                            type="file"
+                                            ref={sigRef}
+                                            accept=".asc,.sig,application/pgp-signature,text/plain"
+                                            data-testid="release-sig-input"
+                                            className="w-full bg-black border border-dashed border-neutral-700 px-3 py-4 font-mono text-xs"
+                                        />
                                     </div>
                                 </div>
                             ) : (

@@ -149,6 +149,11 @@ export default function Layout({ children }) {
                                 </Link>
                             </li>
                             <li>
+                                <Link to="/security" className="hover:text-cyan-400">
+                                    Security &amp; GPG
+                                </Link>
+                            </li>
+                            <li>
                                 <Link
                                     to="/admin/login"
                                     className="hover:text-cyan-400"
@@ -160,12 +165,37 @@ export default function Layout({ children }) {
                     </div>
                     <div>
                         <div className="font-mono text-xs uppercase tracking-widest text-neutral-400 mb-3">
-                            System
+                            Feeds
                         </div>
                         <ul className="space-y-2 text-neutral-400 font-mono text-xs">
-                            <li>arch: x86_64 · arm64 · riscv</li>
-                            <li>license: BSD-3-Clause</li>
-                            <li>© {new Date().getFullYear()} AetherXOS</li>
+                            <li>
+                                <a
+                                    href="/api/feed/news.xml"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="hover:text-cyan-400"
+                                    data-testid="rss-news"
+                                >
+                                    /feed/news.xml
+                                </a>
+                            </li>
+                            <li>
+                                <a
+                                    href="/api/feed/changelog.xml"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="hover:text-cyan-400"
+                                    data-testid="rss-changelog"
+                                >
+                                    /feed/changelog.xml
+                                </a>
+                            </li>
+                            <li className="pt-2 text-neutral-500">
+                                arch: x86_64 · arm64 · riscv
+                            </li>
+                            <li className="text-neutral-500">
+                                © {new Date().getFullYear()} AetherXOS
+                            </li>
                         </ul>
                     </div>
                 </div>

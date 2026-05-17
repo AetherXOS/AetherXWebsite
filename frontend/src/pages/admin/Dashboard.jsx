@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { Navigate } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
+import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import {
     LineChart,
@@ -40,12 +42,18 @@ function Stat({ icon: Icon, label, value, sub }) {
 }
 
 export default function AdminDashboard() {
+    const { user } = useAuth();
     const [days, setDays] = useState(7);
     const [data, setData] = useState(null);
 
     useEffect(() => {
+        if (user?.role !== "admin") return;
         api.get(`/admin/analytics?days=${days}`).then((r) => setData(r.data));
-    }, [days]);
+    }, [days, user]);
+
+    if (user && user.role !== "admin") {
+        return <Navigate to="/admin/posts" replace />;
+    }
 
     return (
         <AdminLayout title="Analytics & Traffic">
