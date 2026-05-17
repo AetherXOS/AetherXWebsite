@@ -1,54 +1,97 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React from "react";
+import "@/index.css";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
+import Layout from "@/components/Layout";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { Toaster } from "@/components/ui/sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import Home from "@/pages/Home";
+import Downloads from "@/pages/Downloads";
+import News from "@/pages/News";
+import NewsDetail from "@/pages/NewsDetail";
+import Changelog from "@/pages/Changelog";
+import Architecture from "@/pages/Architecture";
+import Docs from "@/pages/Docs";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+import AdminLogin from "@/pages/admin/Login";
+import AdminDashboard from "@/pages/admin/Dashboard";
+import AdminPosts from "@/pages/admin/Posts";
+import AdminChangelogs from "@/pages/admin/Changelogs";
+import AdminReleases from "@/pages/admin/Releases";
+import AdminSystem from "@/pages/admin/System";
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+function withLayout(Page) {
+    return (
+        <Layout>
+            <Page />
+        </Layout>
+    );
+}
 
 function App() {
-  return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
-  );
+    return (
+        <AuthProvider>
+            <BrowserRouter>
+                <Routes>
+                    {/* Public */}
+                    <Route path="/" element={withLayout(Home)} />
+                    <Route path="/downloads" element={withLayout(Downloads)} />
+                    <Route path="/news" element={withLayout(News)} />
+                    <Route path="/news/:slug" element={withLayout(NewsDetail)} />
+                    <Route path="/changelog" element={withLayout(Changelog)} />
+                    <Route path="/architecture" element={withLayout(Architecture)} />
+                    <Route path="/docs" element={withLayout(Docs)} />
+
+                    {/* Admin */}
+                    <Route path="/admin/login" element={<AdminLogin />} />
+                    <Route
+                        path="/admin"
+                        element={
+                            <ProtectedRoute>
+                                <AdminDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/posts"
+                        element={
+                            <ProtectedRoute>
+                                <AdminPosts />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/changelogs"
+                        element={
+                            <ProtectedRoute>
+                                <AdminChangelogs />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/releases"
+                        element={
+                            <ProtectedRoute>
+                                <AdminReleases />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/system"
+                        element={
+                            <ProtectedRoute>
+                                <AdminSystem />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+                <Toaster theme="dark" />
+            </BrowserRouter>
+        </AuthProvider>
+    );
 }
 
 export default App;
