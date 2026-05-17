@@ -1,0 +1,91 @@
+{
+  "theme": "dark",
+  "archetype": "Swiss & High-Contrast (Terminal / Retro-Futurism)",
+  "typography": {
+    "headings": {
+      "fontFamily": "'JetBrains Mono', monospace",
+      "weights": ["400", "700", "800"],
+      "classes": "font-mono tracking-tight"
+    },
+    "body": {
+      "fontFamily": "'IBM Plex Sans', sans-serif",
+      "weights": ["400", "500", "600"],
+      "classes": "font-sans leading-relaxed text-zinc-300"
+    },
+    "code": {
+      "fontFamily": "'JetBrains Mono', monospace",
+      "classes": "font-mono text-cyan-400"
+    }
+  },
+  "colors": {
+    "background": {
+      "page": "#000000",
+      "surface": "#0A0A0A",
+      "surface_hover": "#111111",
+      "border": "#222222"
+    },
+    "primary": {
+      "DEFAULT": "#00E5FF",
+      "glow": "rgba(0, 229, 255, 0.5)",
+      "muted": "rgba(0, 229, 255, 0.1)",
+      "foreground": "#000000"
+    },
+    "text": {
+      "primary": "#FFFFFF",
+      "secondary": "#A1A1AA",
+      "accent": "#00E5FF"
+    }
+  },
+  "layout_and_spacing": {
+    "philosophy": "Grid Borders (Technical Look). Expose the skeleton.",
+    "marketing_page": "Bento layouts for features. Pure HTML/Tailwind. Sharp edges, no border-radius on major containers.",
+    "admin_dashboard": "Control Room Grid (Dense). Shadcn components with customized sharp edges.",
+    "container_padding": "p-6 sm:p-8 lg:p-12",
+    "gap": "gap-8 lg:gap-12"
+  },
+  "surface_strategies": {
+    "cards": "Flat background (#0A0A0A), 1px solid border (#222222), no shadow default. Hover: border-cyan-500/50, subtle drop-shadow-[0_0_8px_rgba(0,229,255,0.5)].",
+    "hero": "Deep pure black background. Terminal window container with subtle cyan scanning line.",
+    "terminal": "Black background, glowing cyan text, scanline overlay."
+  },
+  "motion": {
+    "hover": "Transition border-color and drop-shadow 0.2s ease.",
+    "entrance": "Staggered fade-up for list items.",
+    "hero_boot": "Typing effect for CLI terminal boot animation."
+  },
+  "images": {
+    "hero_grid_background": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/517d1884-94a5-453f-a4b2-655a9a8ce7d2/images/f8a808da1f5a8c2fd6dc1eb11c3dd10fdf1e0c0876b52c9c65db7221ebdd94a6.png",
+      "category": "background",
+      "description": "Deep pure black background with subtle cyan glowing grid. Use as full-page or hero section backdrop with low opacity."
+    },
+    "architecture_diagram": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/517d1884-94a5-453f-a4b2-655a9a8ce7d2/images/527531bf35a0c05ca4b33674efedd4e3d4d7298c37e62a10815b3c21af55b5cc.png",
+      "category": "content",
+      "description": "Intricate abstract architecture diagram of Exokernel vs Monolithic. Use in Architecture / About page."
+    },
+    "library_os_module": {
+      "url": "https://static.prod-images.emergentagent.com/jobs/517d1884-94a5-453f-a4b2-655a9a8ce7d2/images/5807d21e37d4ddf1eb24aa14e14f3e109d34cb57d1928e656c44b1bbf8674cfa.png",
+      "category": "content",
+      "description": "Abstract glowing 3D cube representing OS library module. Use in feature highlights for modularity."
+    }
+  },
+  "components": {
+    "marketing": "Use raw div/section with tailwind. Implement terminal/CLI boot sequence in React manually. Avoid standard rounded cards.",
+    "admin": "Shadcn UI (Table, Dialog, Tabs, Form, Input, Button) customized for sharp borders (rounded-none) and cyan active states.",
+    "icons": "lucide-react. Keep them sharp and technical."
+  },
+  "testing": {
+    "required_attributes": "All interactive elements MUST have data-testid attributes (e.g., data-testid='download-stable-button')."
+  },
+  "instructions_to_main_agent": [
+    "Initialize React with Tailwind CSS and configure for a deep dark theme by default.",
+    "Add 'JetBrains Mono' and 'IBM Plex Sans' fonts via Google Fonts in index.html, and configure Tailwind theme to use them.",
+    "Implement the CLI/Terminal boot animation for the homepage hero section. It should simulate an OS boot sequence (typing effect, fast scrolling logs) before revealing the main CTA.",
+    "Use grid-border layouts for feature highlights. Ensure pure black backgrounds (#000000) with stark 1px solid borders (#222222).",
+    "For the Download Center, create technical 'Build Cards' showing Stable/Beta/Nightly builds with SHA256 hashes clearly visible.",
+    "For the architecture page, use the provided architecture_diagram image and structure text explaining Exokernel vs Monolithic.",
+    "In the Admin Dashboard, use Shadcn components but override their default styles: set border-radius to 0 (rounded-none), use 1px hard borders, and apply cyan (#00E5FF) hover/focus rings.",
+    "Ensure the WYSIWYG editor in the CMS has a dark mode skin matching the site."
+  ]
+}
