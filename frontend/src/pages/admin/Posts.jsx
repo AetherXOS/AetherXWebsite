@@ -21,9 +21,11 @@ export default function AdminPosts() {
     const [saving, setSaving] = useState(false);
 
     function load() {
-        api.get(`/posts?include_unpublished=true&page_size=200`).then((r) =>
-            setItems(r.data.items || []),
-        );
+        api.get(`/posts?include_unpublished=true&page_size=200`).then((r) => {
+            const payload = r.data;
+            const itemsArr = Array.isArray(payload) ? payload : (payload && (payload.items || payload)) || [];
+            setItems(itemsArr || []);
+        }).catch(() => setItems([]));
     }
     useEffect(load, []);
 

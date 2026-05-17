@@ -100,3 +100,25 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# AetherX Database and Uploads
+frontend/db.json
+frontend/db.json.backup
+frontend/public/uploads/*
+!frontend/public/uploads/.gitkeep
+
+# Prisma & SQLite Local Databases
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+frontend/prisma/*.db
+frontend/prisma/*.db-journal
+
+# React Router v7 & Vite Build Artifacts
+.react-router/
+frontend/.react-router/
+frontend/build/
+
+nexts.txt
+

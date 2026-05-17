@@ -53,7 +53,7 @@ export default function AdminLogin() {
                 <div className="border border-neutral-900 bg-[#070707]">
                     <div className="px-6 py-4 border-b border-neutral-900 flex items-center gap-2 font-mono text-xs text-neutral-400">
                         <Terminal size={14} className="text-cyan-400" />
-                        ssh admin@aetherxos.dev
+                        ssh admin@aetherxos.com
                     </div>
                     <form onSubmit={onSubmit} className="p-6 space-y-5">
                         <div>
@@ -66,7 +66,7 @@ export default function AdminLogin() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 data-testid="admin-login-email"
                                 className="w-full bg-black border border-neutral-800 focus:border-cyan-400 outline-none px-3 py-2 font-mono text-sm"
-                                placeholder="admin@aetherxos.dev"
+                                placeholder="admin@aetherxos.com"
                                 required
                             />
                         </div>

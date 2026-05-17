@@ -1,7 +1,6 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-export const API_BASE = `${BACKEND_URL}/api`;
+export const API_BASE = "/api";
 
 export const api = axios.create({
     baseURL: API_BASE,
@@ -34,13 +33,21 @@ export function formatApiError(detail) {
     return String(detail);
 }
 
+let lastTracked = { type: null, path: null, time: 0 };
+
 export function trackEvent(type, path = "", meta = {}) {
+    const now = Date.now();
+    if (lastTracked.type === type && lastTracked.path === path && (now - lastTracked.time) < 100) {
+        return;
+    }
+    lastTracked = { type, path, time: now };
+
     try {
         api.post("/analytics/track", {
             type,
             path,
             referrer: document.referrer || "",
             meta,
-        }).catch(() => {});
-    } catch (_) {}
+        }).catch(() => { });
+    } catch (_) { }
 }

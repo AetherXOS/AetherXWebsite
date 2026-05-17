@@ -1,5 +1,5 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Outlet } from "react-router";
 import { useAuth } from "../context/AuthContext";
 
 export default function ProtectedRoute({ children }) {
@@ -17,5 +17,5 @@ export default function ProtectedRoute({ children }) {
     if (!user || user === false) {
         return <Navigate to="/admin/login" replace />;
     }
-    return children;
+    return children || <Outlet />;
 }

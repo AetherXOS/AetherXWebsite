@@ -20,7 +20,11 @@ export default function AdminDocs() {
     const [saving, setSaving] = useState(false);
 
     const load = () =>
-        api.get(`/docs?include_unpublished=true`).then((r) => setItems(r.data.items || []));
+        api.get(`/docs?include_unpublished=true`).then((r) => {
+            const payload = r.data;
+            const itemsArr = Array.isArray(payload) ? payload : (payload && (payload.items || payload)) || [];
+            setItems(itemsArr || []);
+        }).catch(() => setItems([]));
     useEffect(() => {
         load();
     }, []);

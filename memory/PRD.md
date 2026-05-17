@@ -42,4 +42,4 @@ Build the official website and admin portal for **AetherXOS** — a next-generat
 - **P3** Detached signing of release artifacts (GPG signatures + verification instructions).
 
 ## Test Credentials
-See `/app/memory/test_credentials.md` — `admin@aetherxos.dev` / `aether123`.
+See `/app/memory/test_credentials.md` — `admin@aetherxos.com` / `aether123`.

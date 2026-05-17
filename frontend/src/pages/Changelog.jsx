@@ -49,7 +49,7 @@ export default function Changelog() {
                                 <span className="absolute -left-[31px] top-1 inline-flex items-center justify-center w-6 h-6 bg-black border border-cyan-400/60 text-cyan-400">
                                     <GitCommitHorizontal size={12} />
                                 </span>
-                                <div className="border border-neutral-900 bg-[#070707] p-6">
+                                <div className="border border-neutral-900 bg-[#070707] p-6 min-w-0 w-full overflow-hidden">
                                     <div className="flex items-center gap-3 flex-wrap mb-2">
                                         <span className="font-mono text-cyan-400 font-bold tracking-tight">
                                             v{c.version}

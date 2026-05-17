@@ -1,0 +1,186 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id
+  email        String   @unique
+  password_hash String
+  name         String
+  role         String
+  created_at   DateTime
+
+  @@index([role])
+}
+
+model Post {
+  id           String   @id
+  slug         String   @unique
+  title        String
+  excerpt      String
+  content      String
+  category     String
+  tags         String
+  cover_image  String?
+  published    Boolean  @default(true)
+  author       String
+  created_at   DateTime
+  updated_at   DateTime
+
+  @@index([published])
+  @@index([category])
+}
+
+model Doc {
+  id           String   @id
+  slug         String   @unique
+  title        String
+  section      String
+  order        Int
+  body         String
+  published    Boolean  @default(true)
+  created_at   DateTime
+  updated_at   DateTime
+
+  @@index([section, order])
+}
+
+model Changelog {
+  id           String   @id
+  version      String
+  title        String
+  content      String
+  type         String
+  released_at  DateTime
+  created_at   DateTime
+
+  @@index([released_at])
+  @@index([version])
+}
+
+model Release {
+  id                      String   @id
+  version                 String
+  channel                 String
+  title                   String
+  notes                   String
+  file_url                String?
+  file_name               String?
+  file_size               Int?
+  sha256                  String?
+  arch                    String
+  min_ram_gb              Int
+  min_disk_gb             Int
+  storage_kind            String
+  downloads               Int      @default(0)
+  signature_url           String?
+  signing_key_fingerprint String?
+  created_at              DateTime
+
+  @@index([channel])
+  @@index([version])
+}
+
+model Distro {
+  id          String @id
+  name        String
+  status      String
+  status_color String
+  description String
+  doc_url     String
+  command     String
+}
+
+model Announcement {
+  id           String   @id
+  title        String
+  content      String
+  type         String
+  active       Boolean  @default(true)
+  dismissible  Boolean  @default(true)
+  created_at   DateTime
+
+  @@index([active])
+}
+
+model Chat {
+  id          String   @id
+  session_id  String   @unique
+  status      String
+  messages    String
+  created_at  DateTime
+  updated_at  DateTime?
+
+  @@index([status])
+}
+
+model Cve {
+  id           String   @id
+  title        String
+  description  String
+  severity     String
+  module       String
+  status       String
+  published_at DateTime
+
+  @@index([severity])
+  @@index([status])
+}
+
+model AnalyticsEvent {
+  id       String   @id
+  type     String
+  path     String
+  referrer String
+  ip       String
+  country  String
+  ua       String
+  meta     String
+  ts       DateTime
+
+  @@index([type, ts])
+  @@index([path, ts])
+}
+
+model AdminLog {
+  id     String   @id
+  action String
+  actor  String
+  meta   String
+  ts     DateTime
+
+  @@index([actor, ts])
+  @@index([ts])
+}
+
+model LoginAttempt {
+  id       String   @id
+  email    String
+  success  Boolean
+  ip       String
+  reason   String?
+  ts       DateTime
+
+  @@index([email, ts])
+  @@index([success])
+}
+
+model AdminToken {
+  id          String   @id
+  name        String
+  token       String   @unique
+  created_at  DateTime
+  last_used_at DateTime?
+
+  @@index([created_at])
+}
+
+model KeyValue {
+  key   String @id
+  value String
+}

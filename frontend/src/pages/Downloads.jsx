@@ -58,6 +58,7 @@ function fmtDate(s) {
 export default function Downloads() {
     const [tab, setTab] = useState("stable");
     const [items, setItems] = useState([]);
+    const [distros, setDistros] = useState([]);
     const [copied, setCopied] = useState(null);
 
     useEffect(() => {
@@ -66,6 +67,7 @@ export default function Downloads() {
 
     useEffect(() => {
         api.get("/releases").then((r) => setItems(r.data.items || []));
+        api.get("/distros").then((r) => setDistros(r.data || []));
     }, []);
 
     const grouped = useMemo(() => {
@@ -206,12 +208,12 @@ export default function Downloads() {
                                         </div>
                                     </div>
                                     {r.sha256 && (
-                                        <div className="flex items-center gap-2 mt-3 max-w-full">
+                                        <div className="flex items-center gap-2 mt-3 max-w-full w-full min-w-0 overflow-hidden">
                                             <Hash
                                                 size={14}
                                                 className="text-cyan-400 shrink-0"
                                             />
-                                            <code className="font-mono text-[11px] text-neutral-400 truncate">
+                                            <code className="font-mono text-[11px] text-neutral-400 truncate min-w-0 flex-1 break-all">
                                                 sha256: {r.sha256}
                                             </code>
                                             <button
@@ -263,6 +265,99 @@ export default function Downloads() {
                             </div>
                         </article>
                     ))}
+                </div>
+            </div>
+
+            {/* CUSTOM ISO BUILDERS & ALTERNATIVE DISTROS */}
+            <div className="max-w-7xl mx-auto px-6 lg:px-8 pb-24 border-t border-neutral-900 pt-16">
+                <div className="grid md:grid-cols-2 gap-12">
+                    <div className="space-y-6">
+                        <div className="font-mono text-cyan-400 text-xs uppercase tracking-[0.3em]">
+                            // exokernel virtualization & multi-distro
+                        </div>
+                        <h2 className="font-mono text-3xl font-bold tracking-tight">
+                            Alternative OS Environments
+                        </h2>
+                        <p className="text-neutral-400 text-sm leading-relaxed">
+                            Because AetherXOS is an exokernel + Library OS rather than a monolithic kernel, it does not lock you into a single distribution environment. You can bind third-party OS userlands (like Ubuntu or raw Debian) to run on top of our hardened bare-metal capabilities.
+                        </p>
+                        <div className="border border-neutral-900 bg-[#050505] p-5 space-y-4 font-mono text-xs">
+                            <h4 className="text-white font-bold uppercase tracking-wider flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-cyan-400" />
+                                Available Distro Templates
+                            </h4>
+                            <p className="text-neutral-500 text-xs font-sans">
+                                Select and download pre-configured distro wrappers bundled with the AetherX core kernel directly from our Releases register:
+                            </p>
+                            <ul className="space-y-3">
+                                {distros.map((d) => (
+                                    <li key={d.id} className="flex flex-col gap-1 border-b border-neutral-900 pb-3 last:border-b-0 last:pb-0">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-neutral-300 font-mono font-bold">{d.name}</span>
+                                            <span className={`text-[9px] uppercase tracking-widest border px-1.5 py-0.5 font-mono ${
+                                                d.status_color === "cyan" 
+                                                    ? "text-cyan-400 border-cyan-400/20" 
+                                                    : d.status_color === "yellow" 
+                                                        ? "text-yellow-400 border-yellow-400/20" 
+                                                        : "text-red-400 border-red-400/20"
+                                            }`}>
+                                                {d.status}
+                                            </span>
+                                        </div>
+                                        <p className="text-neutral-500 font-sans text-[11px] normal-case tracking-normal">
+                                            {d.description}
+                                        </p>
+                                        <code className="text-[10px] text-cyan-400/80 mt-1 select-all bg-black px-1.5 py-1 border border-neutral-900 block truncate font-mono">
+                                            $ {d.command}
+                                        </code>
+                                    </li>
+                                ))}
+                                {distros.length === 0 && (
+                                    <li className="text-neutral-500 text-center py-2 font-mono text-xs">No active distro templates registered.</li>
+                                )}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="space-y-6">
+                        <div className="font-mono text-cyan-400 text-xs uppercase tracking-[0.3em]">
+                            // build it yourself
+                        </div>
+                        <h2 className="font-mono text-3xl font-bold tracking-tight">
+                            Local Custom ISO Builder
+                        </h2>
+                        <p className="text-neutral-400 text-sm leading-relaxed">
+                            Want to customize scheduler algorithms, load app-specific paging systems, or build your own custom OS installer ISO? You can compile the full exokernel system directly using our interactive rust-powered toolchain helper.
+                        </p>
+                        <div className="bg-[#030303] border border-neutral-900 p-6 space-y-4">
+                            <h4 className="font-mono text-white text-xs uppercase tracking-wider">
+                                Quick Compile Guide
+                            </h4>
+                            <div className="space-y-3 font-mono text-[11px] text-neutral-400">
+                                <div className="flex gap-2">
+                                    <span className="text-cyan-400 select-none">1.</span>
+                                    <span>Clone the core repository:<br/>
+                                        <code className="text-white block mt-1 bg-black p-2 border border-neutral-900">git clone https://github.com/AetherXOS/AetherXOS.git</code>
+                                    </span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="text-cyan-400 select-none">2.</span>
+                                    <span>Ensure Rust toolchain is installed:<br/>
+                                        <code className="text-white block mt-1 bg-black p-2 border border-neutral-900">rustup target add x86_64-unknown-none</code>
+                                    </span>
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="text-cyan-400 select-none">3.</span>
+                                    <span>Run the interactive xtask ISO builder:<br/>
+                                        <code className="text-white block mt-1 bg-black p-2 border border-neutral-900">cargo xtask distro-iso</code>
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-neutral-500 font-mono italic">
+                                * The xtask script will guide you step-by-step to inject your application payload and compile the bootable ISO automatically.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

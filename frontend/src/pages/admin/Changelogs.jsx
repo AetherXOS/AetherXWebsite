@@ -13,7 +13,11 @@ export default function AdminChangelogs() {
     const [err, setErr] = useState(null);
     const [saving, setSaving] = useState(false);
 
-    const load = () => api.get("/changelogs").then((r) => setItems(r.data.items || []));
+    const load = () => api.get("/changelogs").then((r) => {
+        const payload = r.data;
+        const itemsArr = Array.isArray(payload) ? payload : (payload && (payload.items || payload)) || [];
+        setItems(itemsArr || []);
+    }).catch(() => setItems([]));
     useEffect(() => {
         load();
     }, []);

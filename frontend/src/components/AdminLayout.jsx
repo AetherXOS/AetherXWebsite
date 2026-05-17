@@ -13,6 +13,8 @@ import {
     BookOpen,
     Users as UsersIcon,
     ShieldCheck,
+    Megaphone,
+    MessageSquare,
 } from "lucide-react";
 
 const NAV = [
@@ -21,6 +23,8 @@ const NAV = [
     { to: "/admin/changelogs", label: "Changelogs", icon: GitCommitHorizontal, role: "staff" },
     { to: "/admin/docs", label: "Documentation", icon: BookOpen, role: "staff" },
     { to: "/admin/releases", label: "Releases", icon: Package, role: "admin" },
+    { to: "/admin/announcements", label: "Announcements", icon: Megaphone, role: "admin" },
+    { to: "/admin/support", label: "Live Support", icon: MessageSquare, role: "staff" },
     { to: "/admin/security", label: "Signing Key", icon: ShieldCheck, role: "admin" },
     { to: "/admin/users", label: "Users", icon: UsersIcon, role: "admin" },
     { to: "/admin/system", label: "System Health", icon: Activity, role: "admin" },
@@ -29,6 +33,31 @@ const NAV = [
 export default function AdminLayout({ children, title }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+
+    React.useEffect(() => {
+        let timeout;
+        const resetTimer = () => {
+            if (timeout) clearTimeout(timeout);
+            timeout = setTimeout(async () => {
+                await logout();
+                navigate("/admin/login");
+                if (typeof window !== "undefined") {
+                    window.location.reload();
+                }
+            }, 15 * 60 * 1000); // 15 minutes idle security guard
+        };
+
+        const events = ["mousemove", "keydown", "click", "scroll"];
+        events.forEach(evt => window.addEventListener(evt, resetTimer));
+        
+        resetTimer();
+
+        return () => {
+            if (timeout) clearTimeout(timeout);
+            events.forEach(evt => window.removeEventListener(evt, resetTimer));
+        };
+    }, [logout, navigate]);
+
     return (
         <div className="min-h-screen bg-black text-white grid grid-cols-1 lg:grid-cols-[260px_1fr]">
             <aside className="border-r border-neutral-900 bg-[#050505] lg:min-h-screen">
@@ -67,6 +96,30 @@ export default function AdminLayout({ children, title }) {
                     })}
                 </nav>
                 <div className="mt-auto p-3 border-t border-neutral-900 fixed lg:static bottom-0 left-0 w-full lg:w-auto bg-[#050505]">
+                    <a
+                        href="/api/docs/scalar"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-500 hover:text-cyan-400"
+                    >
+                        <ExternalLink size={14} /> API Playground (Scalar)
+                    </a>
+                    <a
+                        href="/api/docs/swagger"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-500 hover:text-cyan-400"
+                    >
+                        <ExternalLink size={14} /> API Sandbox (Swagger)
+                    </a>
+                    <a
+                        href="/api/docs/redoc"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-500 hover:text-cyan-400"
+                    >
+                        <ExternalLink size={14} /> API Reference (Redoc)
+                    </a>
                     <Link
                         to="/"
                         className="flex items-center gap-2 px-3 py-2 font-mono text-xs text-neutral-500 hover:text-cyan-400"

@@ -21,3 +21,9 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# local database state and user uploads
+/db.json
+/db.json.backup
+/public/uploads/*
+!/public/uploads/.gitkeep
