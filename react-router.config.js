@@ -3,4 +3,5 @@ export default {
   appDirectory: "src",
   // Enable Server-Side Rendering & real server endpoints
   ssr: true,
+  preset: "cloudflare",
 };
