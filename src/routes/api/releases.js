@@ -13,8 +13,19 @@ if (typeof window === "undefined") {
   crypto = require("crypto");
 
   UPLOAD_DIR = path.resolve(process.cwd(), "public/uploads");
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(UPLOAD_DIR)) {
+      fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    }
+  } catch (err) {
+    UPLOAD_DIR = "/tmp/uploads";
+    try {
+      if (!fs.existsSync(UPLOAD_DIR)) {
+        fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+      }
+    } catch (e) {
+      console.warn("Upload dizini oluşturulamadı:", e);
+    }
   }
 }
 
@@ -341,13 +352,13 @@ apiRouter.delete("/releases/:id", requireAdminMiddleware, async (ctx) => {
     try {
       const filePath = path.join(UPLOAD_DIR, release.file_name);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    } catch (_) {}
+    } catch (_) { }
   }
   if (release.signature_file_name) {
     try {
       const signaturePath = path.join(UPLOAD_DIR, release.signature_file_name);
       if (fs.existsSync(signaturePath)) fs.unlinkSync(signaturePath);
-    } catch (_) {}
+    } catch (_) { }
   }
 
   await withDb(ctx.db).transaction(async (trx) => {

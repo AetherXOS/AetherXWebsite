@@ -10,7 +10,7 @@ export default defineConfig({
     jsconfigPaths()
   ],
   server: {
-    port: 3009,
+    port: 3020,
     host: true,
   }
 });

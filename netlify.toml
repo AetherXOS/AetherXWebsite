@@ -8,7 +8,7 @@
 [dev]
   command = "yarn dev"
   port = 8888
-  targetPort = 3009
+  targetPort = 3020
 
 [functions]
   directory = "functions"

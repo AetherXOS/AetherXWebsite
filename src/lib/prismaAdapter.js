@@ -4,12 +4,23 @@ import path from "path";
 import fs from "fs";
 import { saveDb } from "./serverDb.js";
 
-const DEFAULT_DATABASE_URL = "file:./prisma/dev.db";
-const DEFAULT_SCHEMA = path.resolve(process.cwd(), "prisma", "schema.prisma");
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, "../../");
+
+const DEFAULT_DATABASE_URL = `file:${path.resolve(PROJECT_ROOT, "prisma", "prisma", "dev.db")}`;
+const DEFAULT_SCHEMA = path.resolve(PROJECT_ROOT, "prisma", "schema.prisma");
 
 function ensureDatabaseUrl() {
   if (!process.env.DATABASE_URL) {
     process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
+  } else if (process.env.DATABASE_URL.startsWith("file:")) {
+    const rawPath = process.env.DATABASE_URL.replace("file:", "");
+    if (!path.isAbsolute(rawPath)) {
+      process.env.DATABASE_URL = `file:${path.resolve(PROJECT_ROOT, rawPath)}`;
+    }
   }
   return process.env.DATABASE_URL;
 }
