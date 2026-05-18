@@ -1,0 +1,15 @@
+# Netlify Configuration File
+# Modern React Router v7 & Serverless Functions Setup
+
+[build]
+  command = "yarn build"
+  publish = "build/client"
+
+[dev]
+  command = "yarn dev"
+  port = 8888
+  targetPort = 3009
+
+[functions]
+  directory = "functions"
+  node_bundler = "esbuild"
