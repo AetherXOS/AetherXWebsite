@@ -12,6 +12,12 @@ export default function AdminUsers() {
     const [form, setForm] = useState({ email: "", password: "", name: "", role: "editor" });
     const [err, setErr] = useState(null);
     const [busy, setBusy] = useState(false);
+    
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [passForm, setPassForm] = useState({ current_password: "", new_password: "" });
+    const [passErr, setPassErr] = useState(null);
+    const [passBusy, setPassBusy] = useState(false);
+
     const { user: me } = useAuth();
 
     const load = () => api.get("/admin/users").then((r) => setItems(r.data.items || []));
@@ -50,6 +56,21 @@ export default function AdminUsers() {
             load();
         } catch (e) {
             window.alert(formatApiError(e.response?.data?.detail) || e.message);
+        }
+    }
+
+    async function changePassword() {
+        setPassBusy(true);
+        setPassErr(null);
+        try {
+            await api.put("/auth/password", passForm);
+            setChangingPassword(false);
+            setPassForm({ current_password: "", new_password: "" });
+            window.alert("Password updated successfully.");
+        } catch (e) {
+            setPassErr(formatApiError(e.response?.data?.detail) || e.message);
+        } finally {
+            setPassBusy(false);
         }
     }
 
@@ -109,6 +130,14 @@ export default function AdminUsers() {
                                     {new Date(u.created_at).toLocaleDateString()}
                                 </td>
                                 <td className="px-4 py-3 text-right space-x-2">
+                                    {me?.email === u.email && (
+                                        <button
+                                            onClick={() => setChangingPassword(true)}
+                                            className="px-2 py-1.5 border border-cyan-400/50 text-cyan-400 hover:bg-cyan-400/10 font-mono text-[10px] uppercase tracking-widest"
+                                        >
+                                            Change Password
+                                        </button>
+                                    )}
                                     {me?.email !== u.email && (
                                         <>
                                             <select
@@ -202,6 +231,60 @@ export default function AdminUsers() {
                                     className="px-4 py-2 bg-cyan-400 text-black font-mono text-xs uppercase tracking-widest font-bold hover:bg-cyan-300 disabled:opacity-50"
                                 >
                                     {busy ? "creating…" : "create"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {changingPassword && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-start justify-center overflow-y-auto py-10 px-4">
+                    <div className="w-full max-w-md border border-neutral-800 bg-black">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-900">
+                            <div className="font-mono text-cyan-400 text-xs uppercase tracking-widest">
+                                change password
+                            </div>
+                            <button
+                                onClick={() => setChangingPassword(false)}
+                                className="p-1 border border-neutral-800 hover:border-cyan-400/60 hover:text-cyan-400"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-3">
+                            <input
+                                type="password"
+                                placeholder="current password"
+                                value={passForm.current_password}
+                                onChange={(e) => setPassForm((s) => ({ ...s, current_password: e.target.value }))}
+                                className="w-full bg-black border border-neutral-800 focus:border-cyan-400 outline-none px-3 py-2 font-mono text-sm"
+                            />
+                            <input
+                                type="password"
+                                placeholder="new password (min 6 chars)"
+                                value={passForm.new_password}
+                                onChange={(e) => setPassForm((s) => ({ ...s, new_password: e.target.value }))}
+                                className="w-full bg-black border border-neutral-800 focus:border-cyan-400 outline-none px-3 py-2 font-mono text-sm"
+                            />
+                            {passErr && (
+                                <div className="border border-red-500/40 bg-red-500/10 text-red-300 px-3 py-2 font-mono text-xs">
+                                    [ERR] {passErr}
+                                </div>
+                            )}
+                            <div className="flex justify-end gap-3 pt-3 border-t border-neutral-900">
+                                <button
+                                    onClick={() => setChangingPassword(false)}
+                                    className="px-4 py-2 border border-neutral-800 hover:border-cyan-400/60 font-mono text-xs uppercase tracking-widest"
+                                >
+                                    cancel
+                                </button>
+                                <button
+                                    onClick={changePassword}
+                                    disabled={passBusy}
+                                    className="px-4 py-2 bg-cyan-400 text-black font-mono text-xs uppercase tracking-widest font-bold hover:bg-cyan-300 disabled:opacity-50"
+                                >
+                                    {passBusy ? "updating…" : "update"}
                                 </button>
                             </div>
                         </div>

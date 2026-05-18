@@ -83,3 +83,68 @@ apiRouter.post("/auth/logout", (ctx) => {
     200: { description: "Session cleared successfully." }
   }
 });
+
+import { hashPassword } from "../../lib/serverDb.js";
+import { withDb } from "../../lib/dbAdapter.js";
+
+apiRouter.put("/auth/password", async (ctx) => {
+  if (!ctx.user) {
+    throw new Response(JSON.stringify({ detail: "Not authenticated" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const body = ctx.body || {};
+  const currentPassword = body.current_password || "";
+  const newPassword = body.new_password || "";
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Response(JSON.stringify({ detail: "New password must be at least 6 characters long" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const userIndex = ctx.db.users.findIndex((u) => u.id === ctx.user.id);
+  if (userIndex === -1) {
+    throw new Response(JSON.stringify({ detail: "User not found" }), {
+      status: 404,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const user = ctx.db.users[userIndex];
+  
+  if (!verifyPassword(currentPassword, user.password_hash)) {
+    throw new Response(JSON.stringify({ detail: "Mevcut şifre yanlış" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const updatedUser = {
+    ...user,
+    password_hash: hashPassword(newPassword)
+  };
+
+  await withDb(ctx.db).transaction(async (trx) => {
+    await trx.updateAt("users", userIndex, updatedUser);
+    const log = { id: "log-" + Date.now(), action: "password.update", actor: user.email, meta: { userId: user.id }, ts: new Date().toISOString() };
+    await trx.insert("admin_logs", log);
+  });
+
+  return { ok: true, detail: "Password updated successfully" };
+}, {
+  summary: "Change User Password",
+  tags: ["Authentication"],
+  secured: true,
+  body: {
+    current_password: { type: "string", description: "Current password." },
+    new_password: { type: "string", description: "New password (min 6 chars)." }
+  },
+  responses: {
+    200: { description: "Password successfully updated." },
+    400: { description: "Invalid current password or weak new password." }
+  }
+});
