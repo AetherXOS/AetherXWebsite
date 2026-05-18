@@ -6,9 +6,9 @@ import { saveDb } from "./serverDb.js";
 
 import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, "../../");
+const adapterFilename = fileURLToPath(import.meta.url);
+const adapterDirname = path.dirname(adapterFilename);
+const PROJECT_ROOT = path.resolve(adapterDirname, "../../");
 
 const DEFAULT_DATABASE_URL = `file:${path.resolve(PROJECT_ROOT, "prisma", "prisma", "dev.db")}`;
 const DEFAULT_SCHEMA = path.resolve(PROJECT_ROOT, "prisma", "schema.prisma");

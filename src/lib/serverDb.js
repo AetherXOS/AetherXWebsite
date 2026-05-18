@@ -9,6 +9,11 @@ if (typeof window === "undefined") {
   path = require("path");
   crypto = require("crypto");
   DB_PATH = path.resolve(process.cwd(), "db.json");
+  try {
+    fs.accessSync(path.dirname(DB_PATH), fs.constants.W_OK);
+  } catch (e) {
+    DB_PATH = "/tmp/db.json";
+  }
 }
 
 let dbCache = null;
